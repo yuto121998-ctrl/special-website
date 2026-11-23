@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Six Years</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700&family=Pacifico&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* ===== 色・雰囲気はここで調整 ===== */
+:root{--bg:#fff4e6;--ink:#1b1340;--c:#ff3d7f;--c2:#ffd23f}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:"Zen Maru Gothic",sans-serif;-webkit-tap-highlight-color:transparent}
+body{overflow:hidden;transition:background .8s}
+/* 背景のふわふわ色玉（章ごとに色が変わる） */
+body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(40px);opacity:.55;transition:background 1s;z-index:0}
+body::before{width:70vw;height:70vw;background:var(--c);top:-20vw;right:-25vw;animation:float 9s ease-in-out infinite}
+body::after{width:60vw;height:60vw;background:var(--c2);bottom:-20vw;left:-20vw;animation:float 11s ease-in-out infinite reverse}
+@keyframes float{50%{transform:translate(-8vw,6vw) scale(1.1)}}
+.screen{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 22px;text-align:center;opacity:0;transform:translateY(24px) scale(.97);pointer-events:none;transition:opacity .6s,transform .6s cubic-bezier(.2,1.4,.4,1)}
+.screen.on{opacity:1;transform:none;pointer-events:auto}
+.en{font-family:"Pacifico",cursive;font-size:18px;color:var(--c)}
+.big{font-family:"Dela Gothic One";font-size:180px;line-height:1;color:var(--c2);-webkit-text-stroke:3px var(--ink);text-shadow:6px 6px 0 var(--c),12px 12px 0 var(--ink);animation:wob 3s ease-in-out infinite}
+@keyframes wob{50%{transform:rotate(-6deg) scale(1.05)}}
+h2{font-family:"Dela Gothic One";font-weight:400;font-size:26px;line-height:1.4;margin:10px 0 18px}
+.chap{font-family:"Dela Gothic One";font-size:110px;line-height:1;color:#fff;-webkit-text-stroke:3px var(--ink);text-shadow:8px 8px 0 var(--c)}
+.tag{display:inline-block;background:var(--ink);color:#fff;padding:6px 16px;border-radius:999px;font-weight:700;font-size:14px;transform:rotate(-3deg)}
+p{font-size:16px;line-height:1.9;font-weight:500}
+.rule{width:60px;height:8px;margin:20px auto;background:repeating-linear-gradient(90deg,var(--c) 0 8px,transparent 8px 14px)}
+input{width:100%;max-width:280px;border:3px solid var(--ink);border-radius:16px;background:#fff;font:inherit;font-size:18px;text-align:center;padding:12px;outline:none;box-shadow:4px 4px 0 var(--ink)}
+.btn{margin-top:26px;border:3px solid var(--ink);border-radius:999px;background:var(--c);color:#fff;font-family:"Dela Gothic One";font-size:16px;letter-spacing:.1em;padding:12px 34px;box-shadow:5px 5px 0 var(--ink);transition:transform .1s,box-shadow .1s}
+.btn:active{transform:translate(5px,5px);box-shadow:0 0 0 var(--ink)}
+.choices{display:flex;flex-direction:column;gap:14px;width:100%;max-width:300px}
+.choices .btn{margin:0;width:100%;background:#fff;color:var(--ink)}
+.choices .btn.ng{background:#ddd;color:#888;text-decoration:line-through}
+.err{color:var(--c);font-weight:700;font-size:14px;height:22px;margin-top:12px}
+.shake{animation:sh .4s}@keyframes sh{25%{transform:translateX(-8px) rotate(-2deg)}75%{transform:translateX(8px) rotate(2deg)}}
+.photo{position:relative;width:78vw;max-width:300px;aspect-ratio:4/5;background:linear-gradient(135deg,var(--c),var(--c2));background-size:cover;background-position:center;border:10px solid #fff;border-bottom-width:44px;box-shadow:6px 6px 0 var(--ink);outline:3px solid var(--ink);transform:rotate(-4deg);animation:drop .7s cubic-bezier(.2,1.6,.4,1)}
+.photo::before{content:"";position:absolute;top:-24px;left:50%;width:90px;height:28px;margin-left:-45px;background:rgba(255,210,63,.85);transform:rotate(4deg)}
+@keyframes drop{from{transform:rotate(12deg) scale(.6);opacity:0}}
+.meta{margin-top:22px;font-weight:700;font-size:13px;letter-spacing:.15em}
+.meta b{background:var(--c2);padding:2px 8px;border:2px solid var(--ink);border-radius:6px}
+.progress{position:fixed;top:18px;left:0;right:0;display:flex;justify-content:center;gap:8px;z-index:5}
+.progress i{width:12px;height:12px;border-radius:50%;border:2px solid var(--ink);background:#fff}
+.progress i.done{background:var(--c)}
+.seal{width:120px;height:120px;border-radius:50%;background:var(--c);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);display:flex;align-items:center;justify-content:center;font-size:56px;animation:wob 1.4s ease-in-out infinite;margin:10px 0}
+.letter{max-width:340px;text-align:left;overflow-y:auto;max-height:66vh;background:#fff;border:3px solid var(--ink);border-radius:20px;box-shadow:6px 6px 0 var(--ink);padding:24px 22px;background-image:repeating-linear-gradient(transparent 0 29px,#ffe0ea 29px 30px)}
+.counter{font-family:"Dela Gothic One";font-size:56px;color:var(--c);-webkit-text-stroke:2px var(--ink);text-shadow:4px 4px 0 var(--ink)}
+#map{width:100%;max-width:420px;height:58vh;border:3px solid var(--ink);border-radius:20px;box-shadow:6px 6px 0 var(--ink)}
+.pin{width:30px;height:30px;border-radius:50%;border:3px solid var(--ink);color:#fff;font-family:"Dela Gothic One";font-size:13px;display:flex;align-items:center;justify-content:center;animation:drop .5s cubic-bezier(.2,1.6,.4,1)}
+#mapcap{height:24px;margin-top:14px;font-weight:700}
+.cf{position:fixed;top:-20px;width:10px;height:14px;z-index:9;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+#bgm{position:fixed;left:12px;top:12px;width:112px;height:63px;z-index:8;border:3px solid var(--ink);border-radius:10px;overflow:hidden;box-shadow:3px 3px 0 var(--ink);background:#000;opacity:0;transition:opacity .6s;pointer-events:none}
+#bgm.on{opacity:1}
+#bgm iframe{width:100%;height:100%}
+#mute{position:fixed;right:12px;top:12px;z-index:8;width:44px;height:44px;border-radius:50%;border:3px solid var(--ink);background:#fff;font-size:20px;box-shadow:3px 3px 0 var(--ink);display:none}
+</style>
+
+</head>
+<body>
+<div class="progress" id="prog"></div>
+<div id="app"></div>
+<div id="bgm"><div id="yt"></div></div><button id="mute">🎵</button>
+
+<script>
+/* =========================================================
+   ✏️ 中身はここだけ書き換えればOK
+   ========================================================= */
+const DATA = {
+  from: "Yuto", to: "○○",
+  startDate: "2021-01-02T00:00:00",
+  gate: { q: "ふたりが初めて会った場所は？", a: ["渋谷", "しぶや"] },
+  years: [
+    { no: 1, title: "はじまりの年",
+      quiz: { q: "初デートで食べたものは？", choices: ["パスタ", "ラーメン", "お寿司"], a: 1 },
+      memories: [
+        { photo: "", place: "鎌倉", date: "2021.04.10", text: "雨だったけど、\nずっと笑ってたね。" },
+        { photo: "", place: "横浜", date: "2021.07.22", text: "観覧車のてっぺんで\nなぜか無言になった。" },
+        { photo: "", place: "おうち", date: "2021.12.24", text: "はじめてのクリスマス。\nケーキ焦がしたね。" },
+      ] },
+    { no: 2, title: "遠くへ行った年",
+      quiz: { q: "初めての旅行先は？", choices: ["京都", "沖縄", "金沢"], a: 2 },
+      memory: { photo: "", place: "金沢", date: "2022.08.15", text: "迷子になった夜の\n屋台が忘れられない。" } },
+  ],
+  // 章ごとのテーマ色 [メイン, サブ]（年数分。足りなければ繰り返し）
+  colors: [["#ff3d7f","#ffd23f"],["#3a86ff","#06d6a0"],["#ff7b00","#ff3d7f"],["#8338ec","#3ae0ff"],["#06d6a0","#ffd23f"],["#ff006e","#8338ec"]],
+  // 地図に出す場所（古い順。いくつでもOK）
+  places: [
+    { name: "渋谷", date: "2020.10", lat: 35.659, lng: 139.700 },
+    { name: "鎌倉", date: "2021.04", lat: 35.319, lng: 139.550 },
+    { name: "金沢", date: "2022.08", lat: 36.561, lng: 136.656 },
+    { name: "京都", date: "2023.11", lat: 35.011, lng: 135.768 },
+    { name: "沖縄", date: "2024.07", lat: 26.212, lng: 127.681 },
+    { name: "札幌", date: "2025.02", lat: 43.062, lng: 141.354 },
+  ],
+  // BGM：YouTube公式MVのID（URLの v= の後ろ）。空ならBGMなし
+  bgm: { youtubeId: "pr3YJ0_Rqjs", start: 0 },
+  letter: "6年間、ありがとう。\n\nここに手紙の本文が入ります。\n長くても大丈夫、スクロールできます。\n\nこれからもよろしくね。",
+};
+/* ========================================================= */
+
+const app = document.getElementById('app');
+const steps = [];
+const $ = h => { const d = document.createElement('div'); d.className = 'screen'; d.innerHTML = h; return d; };
+let cur = -1;
+
+function go(i){
+  if (steps[cur]) steps[cur].classList.remove('on');
+  cur = i; steps[i].classList.add('on');
+  const c = steps[i].c || DATA.colors[0];
+  document.body.style.setProperty('--c', c[0]); document.body.style.setProperty('--c2', c[1]);
+  steps[i].onEnter && steps[i].onEnter();
+  const n = DATA.years.length;
+  document.getElementById('prog').innerHTML = cur < 2 ? '' :
+    Array.from({length:n}, (_,k) => `<i class="${k < yearOf(cur) ? 'done':''}"></i>`).join('');
+}
+const yearOf = i => Math.min(DATA.years.length, Math.floor((i - 2) / 3) + 1);
+const next = () => go(cur + 1);
+
+// 1. 合言葉
+const gate = $(`<p class="en">for you only</p><h2>${DATA.gate.q}</h2>
+  <input id="pw" placeholder="こたえ"><div class="err" id="gerr"></div><button class="btn" id="gbtn">ひらく</button>`);
+gate.querySelector('#gbtn').onclick = () => {
+  const v = gate.querySelector('#pw').value.trim().toLowerCase();
+  if (DATA.gate.a.some(a => a.toLowerCase() === v)) { playBgm(); next(); }
+  else { gate.querySelector('#gerr').textContent = 'ちがうみたい…'; gate.classList.add('shake'); setTimeout(()=>gate.classList.remove('shake'),400); }
+};
+steps.push(gate);
+
+// 2. オープニング
+const intro = $(`<p class="en">${DATA.from} &amp; ${DATA.to}</p><div class="big">6</div><p class="en">years together</p>
+  <div class="rule"></div><p>6年分の思い出を、<br>1年ずつたどる小さな旅へ。</p><button class="btn">はじめる</button>`);
+intro.querySelector('.btn').onclick = next;
+steps.push(intro);
+
+// 3. 各年：扉 → クイズ → 思い出
+DATA.years.forEach((y, yi) => {
+  const door = $(`<p class="en">Chapter</p><div class="chap">${y.no}</div><h2>${y.no}年目</h2><span class="tag">${y.title}</span><button class="btn">すすむ →</button>`);
+  door.querySelector('.btn').onclick = next;
+
+  const quiz = $(`<p class="en">Question</p><h2>${y.quiz.q}</h2><div class="choices">${y.quiz.choices.map((c,i)=>`<button class="btn" data-i="${i}">${c}</button>`).join('')}</div><div class="err"></div>`);
+  quiz.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
+    if (+b.dataset.i === y.quiz.a) { confetti(); setTimeout(next, 900); }
+    else { b.classList.add('ng'); quiz.querySelector('.err').textContent = 'おしい！もう一回 🙈'; quiz.classList.add('shake'); setTimeout(()=>quiz.classList.remove('shake'),400); }
+  });
+
+  // 思い出（複数枚OK：写真タップ or ボタンで次へ）
+  const ms = y.memories || [y.memory];
+  const mem = $(`<div class="photo"></div><div class="meta"></div><p style="margin-top:14px"></p><button class="btn"></button>`);
+  let mi = 0;
+  const show = () => {
+    const m = ms[mi], ph = mem.querySelector('.photo');
+    ph.style.backgroundImage = m.photo ? `url('${m.photo}')` : '';
+    ph.style.transform = `rotate(${mi % 2 ? 3 : -4}deg)`;
+    ph.style.animation = 'none'; ph.offsetWidth; ph.style.animation = '';
+    mem.querySelector('.meta').innerHTML = `<b>${m.date}</b> 📍${m.place}` + (ms.length > 1 ? `　${mi+1}/${ms.length}` : '');
+    mem.querySelector('p').innerHTML = m.text.replace(/\n/g,'<br>');
+    mem.querySelector('.btn').textContent = mi < ms.length - 1 ? 'つぎの写真 📷' : 'つぎへ →';
+  };
+  const adv = () => { if (mi < ms.length - 1) { mi++; show(); } else next(); };
+  mem.querySelector('.btn').onclick = adv; mem.querySelector('.photo').onclick = adv;
+  show();
+  [door, quiz, mem].forEach(s => s.c = DATA.colors[yi % DATA.colors.length]);
+  steps.push(door, quiz, mem);
+});
+
+// 4. ふたりの旅ルート
+const mapS = $(`<p class="en">our journey</p><h2>ふたりで旅した場所</h2><div id="map"></div><div id="mapcap"></div><button class="btn" style="visibility:hidden">つぎへ</button>`);
+mapS.onEnter = () => {
+  if (mapS.done) return; mapS.done = true;
+  const map = L.map('map', { zoomControl:false, attributionControl:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution:'© OpenStreetMap © CARTO' }).addTo(map);
+  const P = DATA.places, ll = P.map(p => [p.lat, p.lng]);
+  map.fitBounds(ll, { padding:[30,30] });
+  const line = L.polyline([], { color:'#1b1340', weight:4, dashArray:'2 10', lineCap:'round' }).addTo(map);
+  let k = 0;
+  const step = () => {
+    if (k >= P.length) { mapS.querySelector('#mapcap').textContent = `${P.length}か所、ぜんぶ一緒だった 💕`; mapS.querySelector('.btn').style.visibility = 'visible'; return; }
+    const col = DATA.colors[k % DATA.colors.length][0];
+    line.addLatLng(ll[k]);
+    L.marker(ll[k], { icon: L.divIcon({ className:'', html:`<div class="pin" style="background:${col}">${k+1}</div>`, iconSize:[30,30], iconAnchor:[15,15] }) }).addTo(map);
+    mapS.querySelector('#mapcap').textContent = `${P[k].date}　${P[k].name}`;
+    k++; setTimeout(step, 1100);
+  };
+  setTimeout(() => { map.invalidateSize(); step(); }, 600);
+};
+mapS.querySelector('.btn').onclick = next;
+steps.push(mapS);
+
+// 5. 手紙（封蝋をタップ）
+const env = $(`<p class="en">a letter</p><h2>最後に、手紙を。</h2><div class="seal">💌</div><p class="meta">タップしてひらく</p>`);
+env.querySelector('.seal').onclick = next;
+const letter = $(`<div class="letter"><p>${DATA.letter.replace(/\n/g,'<br>')}</p><p class="en" style="text-align:right;margin-top:20px">— ${DATA.from}</p></div><button class="btn">おわりに</button>`);
+letter.querySelector('.btn').onclick = next;
+steps.push(env, letter);
+
+// 6. カウンター
+const cnt = $(`<p class="en">we have been together for</p><div class="counter" id="days"></div><p class="meta" id="hms"></p><div class="rule"></div><p>これからも、ずっと。</p>`);
+cnt.onEnter = () => {
+  const t0 = new Date(DATA.startDate);
+  const tick = () => { const s = Math.floor((Date.now()-t0)/1000);
+    cnt.querySelector('#days').textContent = Math.floor(s/86400).toLocaleString() + ' days';
+    cnt.querySelector('#hms').textContent = `${Math.floor(s%86400/3600)}時間 ${Math.floor(s%3600/60)}分 ${s%60}秒`; };
+  tick(); setInterval(tick, 1000); confetti();
+};
+steps.push(cnt);
+
+function confetti(){
+  const cols = ['#ff3d7f','#ffd23f','#3a86ff','#06d6a0','#8338ec','#ff7b00'];
+  for (let i = 0; i < 50; i++) { const d = document.createElement('div'); d.className = 'cf';
+    d.style.cssText = `left:${Math.random()*100}vw;background:${cols[i%6]};animation-duration:${1.5+Math.random()*1.5}s;animation-delay:${Math.random()*.4}s;border-radius:${i%2?'50%':'2px'}`;
+    document.body.appendChild(d); setTimeout(() => d.remove(), 3500); }
+}
+// BGM（YouTube）：タップした瞬間に再生開始
+let yt, playing = false;
+if (DATA.bgm.youtubeId) {
+  window.onYouTubeIframeAPIReady = () => { yt = new YT.Player('yt', { videoId: DATA.bgm.youtubeId,
+    playerVars: { playsinline:1, controls:0, loop:1, playlist:DATA.bgm.youtubeId, start:DATA.bgm.start, rel:0 } }); };
+  const t = document.createElement('script'); t.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(t);
+}
+function playBgm(){
+  if (!yt || !yt.playVideo) return;
+  yt.playVideo(); playing = true;
+  document.getElementById('bgm').classList.add('on');
+  const b = document.getElementById('mute'); b.style.display = 'block';
+  b.onclick = () => { playing ? yt.pauseVideo() : yt.playVideo(); playing = !playing; b.textContent = playing ? '🎵' : '🔇'; };
+}
+steps.forEach(s => app.appendChild(s));
+go(0);
+</script>
+</body>
+</html>
