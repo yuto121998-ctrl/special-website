@@ -67,39 +67,35 @@ input{width:100%;max-width:280px;border:3px solid var(--ink);border-radius:16px;
 
 <script>
 /* =========================================================
-   ✏️ 中身はここだけ書き換えればOK
+   ✏️ ここは公開される情報（合言葉の質問とBGMだけ）
+   思い出・写真・手紙は builder.html で暗号化して secret.bin に入れる
    ========================================================= */
-const DATA = {
-  from: "Yuto", to: "○○",
-  startDate: "2021-01-02T00:00:00",
-  gate: { q: "ふたりが初めて会った場所は？", a: ["渋谷", "しぶや"] },
-  years: [
-    { no: 1, title: "はじまりの年",
-      quiz: { q: "初デートで食べたものは？", choices: ["パスタ", "ラーメン", "お寿司"], a: 1 },
-      memories: [
-        { photo: "", place: "鎌倉", date: "2021.04.10", text: "雨だったけど、\nずっと笑ってたね。" },
-        { photo: "", place: "横浜", date: "2021.07.22", text: "観覧車のてっぺんで\nなぜか無言になった。" },
-        { photo: "", place: "おうち", date: "2021.12.24", text: "はじめてのクリスマス。\nケーキ焦がしたね。" },
-      ] },
-    { no: 2, title: "遠くへ行った年",
-      quiz: { q: "初めての旅行先は？", choices: ["京都", "沖縄", "金沢"], a: 2 },
-      memory: { photo: "", place: "金沢", date: "2022.08.15", text: "迷子になった夜の\n屋台が忘れられない。" } },
-  ],
-  // 章ごとのテーマ色 [メイン, サブ]（年数分。足りなければ繰り返し）
-  colors: [["#ff3d7f","#ffd23f"],["#3a86ff","#06d6a0"],["#ff7b00","#ff3d7f"],["#8338ec","#3ae0ff"],["#06d6a0","#ffd23f"],["#ff006e","#8338ec"]],
-  // 地図に出す場所（古い順。いくつでもOK）
-  places: [
-    { name: "渋谷", date: "2020.10", lat: 35.659, lng: 139.700 },
-    { name: "鎌倉", date: "2021.04", lat: 35.319, lng: 139.550 },
-    { name: "金沢", date: "2022.08", lat: 36.561, lng: 136.656 },
-    { name: "京都", date: "2023.11", lat: 35.011, lng: 135.768 },
-    { name: "沖縄", date: "2024.07", lat: 26.212, lng: 127.681 },
-    { name: "札幌", date: "2025.02", lat: 43.062, lng: 141.354 },
-  ],
-  // BGM：YouTube公式MVのID（URLの v= の後ろ）。空ならBGMなし
+const PUBLIC = {
+  q: "ふたりが初めて会った場所は？",
   bgm: { youtubeId: "pr3YJ0_Rqjs", start: 0 },
-  letter: "6年間、ありがとう。\n\nここに手紙の本文が入ります。\n長くても大丈夫、スクロールできます。\n\nこれからもよろしくね。",
 };
+/* ========================================================= */
+let DATA = { colors: [["#ff3d7f","#ffd23f"]], years: [] };  // 復号後に中身が入る
+
+// 合言葉のゆらぎ吸収（全角半角・大文字小文字・カタカナ→ひらがな・空白）
+const norm = s => s.normalize('NFKC').toLowerCase().replace(/\s+/g,'').replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function unlock(answer){
+  const buf = new Uint8Array(await (await fetch('secret.bin', { cache: 'no-store' })).arrayBuffer());
+  const hl = new DataView(buf.buffer).getUint32(0);
+  const h = JSON.parse(new TextDecoder().decode(buf.slice(4, 4 + hl)));
+  const pk = await crypto.subtle.importKey('raw', new TextEncoder().encode(norm(answer)), 'PBKDF2', false, ['deriveKey']);
+  const kek = await crypto.subtle.deriveKey({ name:'PBKDF2', salt:b64d(h.salt), iterations:h.iter, hash:'SHA-256' }, pk, { name:'AES-GCM', length:256 }, false, ['decrypt']);
+  for (const k of h.keys) {
+    try {
+      const raw = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b64d(k.iv) }, kek, b64d(k.ct));
+      const dk = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+      const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b64d(h.iv) }, dk, buf.slice(4 + hl));
+      return JSON.parse(new TextDecoder().decode(pt));
+    } catch (e) {}
+  }
+  throw new Error('wrong');
+}
 /* ========================================================= */
 
 const app = document.getElementById('app');
@@ -113,23 +109,26 @@ function go(i){
   const c = steps[i].c || DATA.colors[0];
   document.body.style.setProperty('--c', c[0]); document.body.style.setProperty('--c2', c[1]);
   steps[i].onEnter && steps[i].onEnter();
-  const n = DATA.years.length;
   document.getElementById('prog').innerHTML = cur < 2 ? '' :
-    Array.from({length:n}, (_,k) => `<i class="${k < yearOf(cur) ? 'done':''}"></i>`).join('');
+    Array.from({length:DATA.years.length}, (_,k) => `<i class="${k < yearOf(cur) ? 'done':''}"></i>`).join('');
 }
 const yearOf = i => Math.min(DATA.years.length, Math.floor((i - 2) / 3) + 1);
 const next = () => go(cur + 1);
 
 // 1. 合言葉
-const gate = $(`<p class="en">for you only</p><h2>${DATA.gate.q}</h2>
+const gate = $(`<p class="en">for you only</p><h2>${PUBLIC.q}</h2>
   <input id="pw" placeholder="こたえ"><div class="err" id="gerr"></div><button class="btn" id="gbtn">ひらく</button>`);
-gate.querySelector('#gbtn').onclick = () => {
-  const v = gate.querySelector('#pw').value.trim().toLowerCase();
-  if (DATA.gate.a.some(a => a.toLowerCase() === v)) { playBgm(); next(); }
-  else { gate.querySelector('#gerr').textContent = 'ちがうみたい…'; gate.classList.add('shake'); setTimeout(()=>gate.classList.remove('shake'),400); }
+gate.querySelector('#gbtn').onclick = async () => {
+  const btn = gate.querySelector('#gbtn'), err = gate.querySelector('#gerr');
+  playBgm();  // iPhoneはタップ直後でないと音が出ないので先に再生
+  btn.disabled = true; err.textContent = 'ひらいています…';
+  try { DATA = await unlock(gate.querySelector('#pw').value); buildRest(); err.textContent = ''; next(); }
+  catch (e) { stopBgm(); err.textContent = 'ちがうみたい…'; gate.classList.add('shake'); setTimeout(()=>gate.classList.remove('shake'),400); }
+  btn.disabled = false;
 };
 steps.push(gate);
 
+function buildRest(){
 // 2. オープニング
 const intro = $(`<p class="en">${DATA.from} &amp; ${DATA.to}</p><div class="big">6</div><p class="en">years together</p>
   <div class="rule"></div><p>6年分の思い出を、<br>1年ずつたどる小さな旅へ。</p><button class="btn">はじめる</button>`);
@@ -214,13 +213,17 @@ function confetti(){
     d.style.cssText = `left:${Math.random()*100}vw;background:${cols[i%6]};animation-duration:${1.5+Math.random()*1.5}s;animation-delay:${Math.random()*.4}s;border-radius:${i%2?'50%':'2px'}`;
     document.body.appendChild(d); setTimeout(() => d.remove(), 3500); }
 }
+steps.slice(1).forEach(s => app.appendChild(s));
+}
+
 // BGM（YouTube）：タップした瞬間に再生開始
 let yt, playing = false;
-if (DATA.bgm.youtubeId) {
-  window.onYouTubeIframeAPIReady = () => { yt = new YT.Player('yt', { videoId: DATA.bgm.youtubeId,
-    playerVars: { playsinline:1, controls:0, loop:1, playlist:DATA.bgm.youtubeId, start:DATA.bgm.start, rel:0 } }); };
+if (PUBLIC.bgm.youtubeId) {
+  window.onYouTubeIframeAPIReady = () => { yt = new YT.Player('yt', { videoId: PUBLIC.bgm.youtubeId,
+    playerVars: { playsinline:1, controls:0, loop:1, playlist:PUBLIC.bgm.youtubeId, start:PUBLIC.bgm.start, rel:0 } }); };
   const t = document.createElement('script'); t.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(t);
 }
+function stopBgm(){ if (yt && yt.pauseVideo) { yt.pauseVideo(); playing = false; document.getElementById('bgm').classList.remove('on'); document.getElementById('mute').style.display = 'none'; } }
 function playBgm(){
   if (!yt || !yt.playVideo) return;
   yt.playVideo(); playing = true;

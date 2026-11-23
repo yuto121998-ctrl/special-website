@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Secret Builder</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:16px;background:#fff4e6;color:#1b1340}
+h1{font-size:20px}label{display:block;font-weight:700;margin:18px 0 6px}
+textarea{width:100%;height:46vh;font:13px/1.5 ui-monospace,monospace;border:2px solid #1b1340;border-radius:10px;padding:10px;box-sizing:border-box}
+input[type=text]{width:100%;font-size:16px;padding:10px;border:2px solid #1b1340;border-radius:10px;box-sizing:border-box}
+button{margin-top:18px;font-size:16px;font-weight:700;padding:14px 28px;border:2px solid #1b1340;border-radius:999px;background:#ff3d7f;color:#fff;box-shadow:4px 4px 0 #1b1340}
+small{color:#666}#log{white-space:pre-wrap;margin-top:16px;font-size:14px}
+</style></head><body>
+<h1>🔐 secret.bin を作るツール</h1>
+<p><small>入力内容と写真はこの端末の中だけで暗号化されます。どこにも送信されません。<br>本文は自動でこの端末に下書き保存されます（写真は毎回選び直し）。</small></p>
+<label>① 中身（DATA）</label>
+<textarea id="data">{
+  from: &quot;Yuto&quot;, to: &quot;○○&quot;,
+  startDate: &quot;2021-01-02T00:00:00&quot;,
+  years: [
+    { no: 1, title: &quot;はじまりの年&quot;,
+      quiz: { q: &quot;初デートで食べたものは？&quot;, choices: [&quot;パスタ&quot;, &quot;ラーメン&quot;, &quot;お寿司&quot;], a: 1 },
+      memories: [
+        { photo: &quot;2021-1.jpg&quot;, place: &quot;鎌倉&quot;, date: &quot;2021.04.10&quot;, text: &quot;雨だったけど、\nずっと笑ってたね。&quot; },
+        { photo: &quot;&quot;, place: &quot;横浜&quot;, date: &quot;2021.07.22&quot;, text: &quot;観覧車のてっぺんで\nなぜか無言になった。&quot; },
+        { photo: &quot;&quot;, place: &quot;おうち&quot;, date: &quot;2021.12.24&quot;, text: &quot;はじめてのクリスマス。\nケーキ焦がしたね。&quot; },
+      ] },
+    { no: 2, title: &quot;遠くへ行った年&quot;,
+      quiz: { q: &quot;初めての旅行先は？&quot;, choices: [&quot;京都&quot;, &quot;沖縄&quot;, &quot;金沢&quot;], a: 2 },
+      memory: { photo: &quot;&quot;, place: &quot;金沢&quot;, date: &quot;2022.08.15&quot;, text: &quot;迷子になった夜の\n屋台が忘れられない。&quot; } },
+  ],
+  // 章ごとのテーマ色 [メイン, サブ]（年数分。足りなければ繰り返し）
+  colors: [[&quot;#ff3d7f&quot;,&quot;#ffd23f&quot;],[&quot;#3a86ff&quot;,&quot;#06d6a0&quot;],[&quot;#ff7b00&quot;,&quot;#ff3d7f&quot;],[&quot;#8338ec&quot;,&quot;#3ae0ff&quot;],[&quot;#06d6a0&quot;,&quot;#ffd23f&quot;],[&quot;#ff006e&quot;,&quot;#8338ec&quot;]],
+  // 地図に出す場所（古い順。いくつでもOK）
+  places: [
+    { name: &quot;渋谷&quot;, date: &quot;2020.10&quot;, lat: 35.659, lng: 139.700 },
+    { name: &quot;鎌倉&quot;, date: &quot;2021.04&quot;, lat: 35.319, lng: 139.550 },
+    { name: &quot;金沢&quot;, date: &quot;2022.08&quot;, lat: 36.561, lng: 136.656 },
+    { name: &quot;京都&quot;, date: &quot;2023.11&quot;, lat: 35.011, lng: 135.768 },
+    { name: &quot;沖縄&quot;, date: &quot;2024.07&quot;, lat: 26.212, lng: 127.681 },
+    { name: &quot;札幌&quot;, date: &quot;2025.02&quot;, lat: 43.062, lng: 141.354 },
+  ],
+  letter: &quot;6年間、ありがとう。\n\nここに手紙の本文が入ります。\n長くても大丈夫、スクロールできます。\n\nこれからもよろしくね。&quot;,
+}</textarea>
+<label>② 合言葉の答え（カンマ区切りで複数OK）</label>
+<input type="text" id="ans" value="渋谷, しぶや">
+<label>③ 写真（DATAの photo: に書いたファイル名と同じもの・複数選択OK）</label>
+<input type="file" id="photos" accept="image/*" multiple>
+<br><button id="go">暗号化して secret.bin をダウンロード</button>
+<div id="log"></div>
+<script>
+const ta = document.getElementById('data'), log = m => document.getElementById('log').textContent += m + '\n';
+try { const d = localStorage.getItem('draft'); if (d) ta.value = d; } catch (e) {}
+ta.oninput = () => { try { localStorage.setItem('draft', ta.value); } catch (e) {} };
+const norm = s => s.normalize('NFKC').toLowerCase().replace(/\s+/g,'').replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const b64 = u => btoa(String.fromCharCode(...new Uint8Array(u)));
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+
+// 写真を長辺1400pxのJPEGに縮小して dataURL に
+async function shrink(file){
+  const img = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const k = Math.min(1, 1400 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k;
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
+document.getElementById('go').onclick = async () => {
+  document.getElementById('log').textContent = '';
+  let DATA;
+  try { DATA = new Function('return (' + ta.value + ')')(); } catch (e) { return log('❌ 中身の書き方にミスがあります：' + e.message); }
+  const answers = document.getElementById('ans').value.split(/[,、]/).map(norm).filter(Boolean);
+  if (!answers.length) return log('❌ 合言葉の答えを入れてください');
+  const files = {}; for (const f of document.getElementById('photos').files) files[f.name.toLowerCase()] = f;
+  let ok = 0, miss = [];
+  for (const y of DATA.years) for (const m of (y.memories || [y.memory])) {
+    if (!m.photo || m.photo.startsWith('data:')) continue;
+    const f = files[m.photo.toLowerCase()];
+    if (f) { m.photo = await shrink(f); ok++; } else { miss.push(m.photo); m.photo = ''; }
+  }
+  log(`📷 写真 ${ok}枚を入れました` + (miss.length ? `\n⚠️ 見つからなかった写真: ${miss.join(', ')}` : ''));
+  // 中身を毎回新しい鍵で暗号化し、その鍵を合言葉ごとに包む
+  const dkRaw = rnd(32), iv = rnd(12), salt = rnd(16), iter = 200000;
+  const dk = await crypto.subtle.importKey('raw', dkRaw, 'AES-GCM', false, ['encrypt']);
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, dk, new TextEncoder().encode(JSON.stringify(DATA)));
+  const keys = [];
+  for (const a of answers) {
+    const pk = await crypto.subtle.importKey('raw', new TextEncoder().encode(a), 'PBKDF2', false, ['deriveKey']);
+    const kek = await crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:iter, hash:'SHA-256' }, pk, { name:'AES-GCM', length:256 }, false, ['encrypt']);
+    const kiv = rnd(12);
+    keys.push({ iv: b64(kiv), ct: b64(await crypto.subtle.encrypt({ name:'AES-GCM', iv:kiv }, kek, dkRaw)) });
+  }
+  const head = new TextEncoder().encode(JSON.stringify({ v:1, salt:b64(salt), iter, iv:b64(iv), keys }));
+  const len = new Uint8Array(4); new DataView(len.buffer).setUint32(0, head.length);
+  const blob = new Blob([len, head, ct], { type: 'application/octet-stream' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'secret.bin'; a.click();
+  log(`✅ secret.bin を作りました（${(blob.size/1024/1024).toFixed(1)} MB）\nGitHubに上書きアップロードしてください。`);
+};
+</script></body></html>
